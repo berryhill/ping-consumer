@@ -6,4 +6,4 @@ RUN go get app
 RUN go install app
 ENTRYPOINT /go/bin/app
 
-EXPOSE 5000
+EXPOSE 5050
