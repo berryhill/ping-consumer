@@ -1,17 +1,17 @@
 package main
 
 import (
+    "encoding/json"
     "flag"
-    "fmt"
     "log"
     "net/http"
-    "gopkg.in/redis.v3"
+
+    "github.com/berryhill/mine-ws/services"
 
     "github.com/gorilla/websocket"
 )
 
-var addr = flag.String(
-    "addr", "localhost:5050", "http service address")
+var addr = flag.String("addr", "localhost:5050", "http service address")
 
 var upgrader = websocket.Upgrader{} // use default options
 
@@ -38,24 +38,22 @@ func echo(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-    client := redis.NewClient(&redis.Options{
-        Addr: "localhost:6379",
-        Password: "",
-        DB: 0,
-    })
 
-    pong, err := client.Ping().Result()
-    if err != nil {
-        panic(err)
-    }
-    fmt.Println(pong)
-    //http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-    //    fmt.Fprintf(w, "Hello, %q", pong)
-    //})
+    http.HandleFunc("/", Handler)
+    http.HandleFunc("/create", Create)
 
     http.HandleFunc("/echo", echo)
-    //http.HandleFunc("/", home)
     log.Fatal(http.ListenAndServe(*addr, nil))
 
 }
 
+func Handler(w http.ResponseWriter, r *http.Request) {
+
+    m := services.Find(1)
+    json.NewEncoder(w).Encode(m)
+}
+
+func Create(w http.ResponseWriter, r *http.Request) {
+
+    services.Create()
+}
