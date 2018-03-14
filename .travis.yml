@@ -1,25 +1,25 @@
 language: go
 
 go:
-  - 1.9.1
+  - 1.9.4
 
-#cache:
-#  directories:
-#    -s "$HOME/coding/google-cloud-sdk"
+cache:
+  directories:
+    -s "$HOME/coding/google-cloud-sdk"
 
-#env:
-#  global:
-#    - GOOGLE_APPLICATION_CREDENTIALS-~/.gcloud-service-key.json
-#    - PROJECT_NAME=loyal-bounty-183420
-#    - CLUSTER_NAME=efftlss-tech
-#    - CLOUDSDK_COMPUTE_ZONE=us-central1-a
+env:
+  global:
+    - GOOGLE_APPLICATION_CREDENTIALS-~/.gcloud-service-key.json
+    - PROJECT_NAME=miner-191101
+    - CLUSTER_NAME=cluster-1	us-
+    - CLOUDSDK_COMPUTE_ZONE=us-central1-a
 
 before_install:
-#  - if [ ! -d "$HOME/google-cloud-sdk/bin" ]; then rm -rf $HOME/google-cloud-sdk; export CLOUDSDK_CORE_DISABLE_PROMPTS=1; curl https://sdk.cloud.google.com | bash; fi
-#  - source /home/travis/google-cloud-sdk/path.bash.inc
-#  - gcloud --quiet version
-#  - gcloud --quiet components update
-#  - gcloud --quiet components update beta
+  - if [ ! -d "$HOME/google-cloud-sdk/bin" ]; then rm -rf $HOME/google-cloud-sdk; export CLOUDSDK_CORE_DISABLE_PROMPTS=1; curl https://sdk.cloud.google.com | bash; fi
+  - source /home/travis/google-cloud-sdk/path.bash.inc
+  - gcloud --quiet version
+  - gcloud --quiet components update
+  - gcloud --quiet components update beta
   - go get -u github.com/golang/dep/cmd/dep
   - dep ensure
 
@@ -33,4 +33,8 @@ before_deploy:
   - gcloud --quiet components update kubectl
 
 deploy:
-# todo
+  - provider: script
+    script: ./resources/deploy.sh
+    skip_cleanup: true
+    on:
+      branch: master

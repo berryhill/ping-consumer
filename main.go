@@ -16,7 +16,7 @@ import (
 )
 
 var addr = flag.String(
-    "addr", "localhost:5050", "http service address")
+    "addr", ":5050", "http service address")
 
 func main() {
 
@@ -75,6 +75,7 @@ func main() {
 
 func StartHttpServer() {
     http.HandleFunc("/", Handler)
+    http.HandleFunc("/create", CreateRig)
     log.Fatal(http.ListenAndServe(*addr, nil))
 }
 
@@ -84,11 +85,11 @@ func Handler(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(m)
 }
 
-//func Create(w http.ResponseWriter, r *http.Request) {
-//
-//    m := new(services.Mine)
-//    services.Create(*m)
-//}
+func CreateRig(w http.ResponseWriter, r *http.Request) {
+
+    rig := new(Rig)
+    Create(*rig)
+}
 
 type Rig struct {
     Id 				int 			`json:"id"`
@@ -145,7 +146,7 @@ func HandleError(err error) {
 
 func RedisConnect() redis.Conn {
 
-    c, err := redis.Dial("tcp", "localhost:6379")
+    c, err := redis.Dial("tcp", "redis-master:6379")
     HandleError(err)
     return c
 }
