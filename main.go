@@ -12,7 +12,7 @@ import (
     "time"
 
     "github.com/garyburd/redigo/redis"
-    "github.com/Shopify/sarama"
+    "github.com/streadway/amqp"
 )
 
 var addr = flag.String(
@@ -20,28 +20,34 @@ var addr = flag.String(
 
 func main() {
 
-    config := sarama.NewConfig()
-    config.Consumer.Return.Errors = true
+    conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+    failOnError(err, "Failed to connect to RabbitMQ")
+    defer conn.Close()
 
-    brokers := []string{"35.193.166.194:9092"}
+    ch, err := conn.Channel()
+    failOnError(err, "Failed to open a channel")
+    defer ch.Close()
 
-    master, err := sarama.NewConsumer(brokers, config)
-    if err != nil {
-        panic(err)
-    }
+    q, err := ch.QueueDeclare(
+        "ping",
+        false,
+        false,
+        false,
+        false,
+        nil,
+    )
+    failOnError(err, "Failed to declare a queue")
 
-    defer func() {
-        if err := master.Close(); err != nil {
-            panic(err)
-        }
-    }()
-
-    topic := "ping"
-    consumer, err := master.ConsumePartition(
-        topic, 0, sarama.OffsetNewest)
-    if err != nil {
-        panic(err)
-    }
+    msgs, err := ch.Consume(
+        q.Name, // queue
+        "",
+        true,
+        false,
+        false,
+        false,
+        nil,
+    )
+    failOnError(err, "Failed to register a consumer")
 
     signals := make(chan os.Signal, 1)
     signal.Notify(signals, os.Interrupt)
@@ -52,11 +58,13 @@ func main() {
     go func() {
         for {
             select {
-            case err := <-consumer.Errors():
-                fmt.Println(err)
-            case msg := <-consumer.Messages():
-                msgCount++
-                go UpdatePing([]byte(msg.Value))
+            case d := <- msgs:
+                if string(d.Body) == "" {
+                    //fmt.Println(d.Body)
+                } else {
+                    log.Printf("Received a message: %s", d.Body)
+                    msgCount++
+                }
             case <-signals:
                 fmt.Println("Interrupt is detected")
                 doneCh <- struct{}{}
@@ -195,3 +203,9 @@ type Ping struct {
 //	}
 //	return posts
 //}
+
+func failOnError(err error, msg string) {
+    if err != nil {
+        log.Fatalf("%s: %s", msg, err)
+    }
+}
