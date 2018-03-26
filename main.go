@@ -2,7 +2,6 @@ package main
 
 import (
     "encoding/json"
-    "flag"
     "fmt"
     "log"
     "net/http"
@@ -12,11 +11,10 @@ import (
     "time"
 
     "github.com/garyburd/redigo/redis"
+    "github.com/labstack/echo"
+    "github.com/labstack/echo/middleware"
     "github.com/streadway/amqp"
 )
-
-var addr = flag.String(
-    "addr", ":5050", "http service address")
 
 func main() {
 
@@ -63,6 +61,18 @@ func main() {
                     //fmt.Println(d.Body)
                 } else {
                     log.Printf("Received a message: %s", d.Body)
+
+                    message := new(Message)
+                    err := json.Unmarshal(d.Body, message)
+                    if err != nil {
+                        log.Printf("Error marshalling json", err)
+                    }
+
+                    if message.Type == "ping" {
+                        go UpdatePing(
+                            message.Payload.(map[string]interface{}))
+                    }
+
                     msgCount++
                 }
             case <-signals:
@@ -73,7 +83,6 @@ func main() {
     }()
 
     go StartHttpServer()
-
     fmt.Println("Up and running")
 
     <-doneCh
@@ -81,22 +90,38 @@ func main() {
 
 }
 
+type Message struct {
+    SenderId 		string					`json:"mac"`
+    UserHash 		string					`json:"mac"`
+    Type 			string					`json:"type"`
+    Payload 		interface{}				`json:"payload"`
+}
+
 func StartHttpServer() {
-    http.HandleFunc("/", Handler)
-    http.HandleFunc("/create", CreateRig)
-    log.Fatal(http.ListenAndServe(*addr, nil))
+
+    e := echo.New()
+    e.Use(middleware.CORS())
+
+    e.Use(middleware.Logger())
+    e.Use(middleware.Recover())
+
+    e.GET("/", Handler)
+    e.GET("/create", CreateRig)
+    e.Logger.Fatal(e.Start(":5051"))
 }
 
-func Handler(w http.ResponseWriter, r *http.Request) {
+func Handler(c echo.Context) error {
 
-    m := Find("100")
-    json.NewEncoder(w).Encode(m)
+    m := Find("1")
+    return c.JSON(http.StatusOK, m)
 }
 
-func CreateRig(w http.ResponseWriter, r *http.Request) {
+func CreateRig(c echo.Context) error {
 
     rig := new(Rig)
     Create(*rig)
+
+    return nil
 }
 
 type Rig struct {
@@ -104,17 +129,19 @@ type Rig struct {
     AccountId 		string 			`json:"account_id"`
     Timestamp 		time.Time		`json:"timestamp"`
     LastPing		Ping 			`json:"last_ping"`
+    TotalHashRate   string          `json:"total_hash_rate"`
+    Gpus            []*Gpu          `json:"gpus"`
 }
 
-var currentPostId int
-var currentUserId int
+type Gpu struct {
+    Id              int             `json:"id"`
+    HashRate        string          `json:"hash_rate"`
+}
+
 
 func Create(r Rig) {
 
-    currentPostId += 1
-    currentUserId += 1
-
-    r.Id = 100
+    r.Id = 1
     r.Timestamp = time.Now()
     c := RedisConnect()
     defer c.Close()
@@ -154,28 +181,44 @@ func HandleError(err error) {
 
 func RedisConnect() redis.Conn {
 
-    c, err := redis.Dial("tcp", "redis-master:6379")
+    c, err := redis.Dial("tcp", "localhost:6379")
     HandleError(err)
     return c
 }
 
-func UpdatePing(payload []byte) {
+func UpdateRig(r Rig) {
+
+    r.Timestamp = time.Now()
+    c := RedisConnect()
+    defer c.Close()
+
+    b, err := json.Marshal(r)
+    HandleError(err)
+
+    reply, err := c.Do(
+        "SET", "machine:" + strconv.Itoa(r.Id), b)
+    HandleError(err)
+
+    fmt.Println("GET ", reply)
+}
+
+func UpdatePing(payload map[string]interface{}) {
+
+    payloadJson, err := json.Marshal(payload)
 
     ping := new(Ping)
-    err := json.Unmarshal(payload, ping)
+    err = json.Unmarshal(payloadJson, ping)
     if err != nil {
         HandleError(err)
     }
 
-    rig := Find("100")
+    rig := Find("1")
     rig.LastPing = *ping
 
-    Create(rig)
+    UpdateRig(rig)
 }
 
 type Ping struct {
-    Id 			string			`json:"id"`
-    Service 	string			`json:"service"`
     Time 		time.Time		`json:"time"`
 }
 
@@ -205,6 +248,7 @@ type Ping struct {
 //}
 
 func failOnError(err error, msg string) {
+
     if err != nil {
         log.Fatalf("%s: %s", msg, err)
     }
