@@ -65,8 +65,6 @@ func main() {
     signals := make(chan os.Signal, 1)
     signal.Notify(signals, os.Interrupt)
 
-    msgCount := 0
-
     doneCh := make(chan struct{})
     go func() {
         for {
@@ -87,8 +85,6 @@ func main() {
                         go UpdatePing(
                             message.Payload.(map[string]interface{}))
                     }
-
-                    msgCount++
                 }
             case <-signals:
                 fmt.Println("Interrupt is detected")
@@ -101,7 +97,7 @@ func main() {
     fmt.Println("Up and running")
 
     <-doneCh
-    fmt.Println("Processed", msgCount, "messages")
+    fmt.Println("Finished")
 
 }
 
@@ -154,6 +150,11 @@ type Gpu struct {
 }
 
 
+type Ping struct {
+    Time 		time.Time		`json:"time"`
+}
+
+
 func Create(r Rig) {
 
     r.Id = 1
@@ -162,43 +163,46 @@ func Create(r Rig) {
     defer c.Close()
 
     b, err := json.Marshal(r)
-    HandleError(err)
+    handlerError(err)
 
     reply, err := c.Do(
         "SET", "machine:" + strconv.Itoa(r.Id), b)
-    HandleError(err)
+    handlerError(err)
 
-    fmt.Println("GET ", reply)
+    fmt.Println("SET ", reply)
 }
 
 func Find(id string) Rig {
 
     var r Rig
-
     c := RedisConnect()
     defer c.Close()
 
     reply, err := c.Do("GET", "machine:" + id)
-    HandleError(err)
+    handlerError(err)
 
-    if err = json.Unmarshal(reply.([]byte), &r); err != nil {
-        log.Printf("Error", err)
-    }
+    err = json.Unmarshal(reply.([]byte), &r)
+    handlerError(err)
+
     return r
 }
-
-func HandleError(err error) {
-
-    if err != nil {
-        panic(err)
-    }
-}
-
 func RedisConnect() redis.Conn {
 
     c, err := redis.Dial("tcp", *redisAddr)
-    HandleError(err)
+    handlerError(err)
     return c
+}
+
+func UpdatePing(payload map[string]interface{}) {
+
+    payloadJson, err := json.Marshal(payload)
+    ping := new(Ping)
+    err = json.Unmarshal(payloadJson, ping)
+    handlerError(err)
+
+    rig := Find("1")
+    rig.LastPing = *ping
+    UpdateRig(rig)
 }
 
 func UpdateRig(r Rig) {
@@ -208,58 +212,14 @@ func UpdateRig(r Rig) {
     defer c.Close()
 
     b, err := json.Marshal(r)
-    HandleError(err)
+    handlerError(err)
 
     reply, err := c.Do(
         "SET", "machine:" + strconv.Itoa(r.Id), b)
-    HandleError(err)
+    handlerError(err)
 
     fmt.Println("GET ", reply)
 }
-
-func UpdatePing(payload map[string]interface{}) {
-
-    payloadJson, err := json.Marshal(payload)
-
-    ping := new(Ping)
-    err = json.Unmarshal(payloadJson, ping)
-    if err != nil {
-        HandleError(err)
-    }
-
-    rig := Find("1")
-    rig.LastPing = *ping
-    UpdateRig(rig)
-}
-
-type Ping struct {
-    Time 		time.Time		`json:"time"`
-}
-
-//func FindAll() [][]byte {
-//
-//	var posts [][]byte
-//
-//	c := RedisConnect()
-//	defer c.Close()
-//
-//	keys, err := c.Do("KEYS", "post:*")
-//	HandleError(err)
-//
-//	for _, k := range keys.([]interface{}) {
-//
-//		var post []byte
-//
-//		reply, err := c.Do("GET", k.([]byte))
-//		HandleError(err)
-//
-//		if err := json.Unmarshal(reply.([]byte), &post); err != nil {
-//			panic(err)
-//		}
-//		posts = append(posts, post)
-//	}
-//	return posts
-//}
 
 func failOnError(err error, msg string) {
 
@@ -267,3 +227,11 @@ func failOnError(err error, msg string) {
         log.Fatalf("%s: %s", msg, err)
     }
 }
+
+func handlerError(err error) {
+
+    if err != nil {
+        panic(err)
+    }
+}
+
