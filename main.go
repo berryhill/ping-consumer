@@ -27,7 +27,7 @@ var redisAddr = flag.String(
     "redis",
     "localhost:6379",
     "redis service address",
-)
+    )
 
 func main() {
 

@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: ping-consumer
-        image: matthewberryhill/ping-consumer:pree8
+        image: matthewberryhill/ping-consumer:pre
         env:
         - name: RABBIT_ADDR
           value: "amqp://ltvdoacc:urQws_KDYLQbcK0mOidy48snnJQMsr7Z@wombat.rmq.cloudamqp.com/ltvdoacc"
