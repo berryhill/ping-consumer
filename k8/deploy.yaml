@@ -1,0 +1,22 @@
+apiVersion: apps/v1beta2 # before 1.9
+kind: Deployment
+metadata:
+  name: ping-consumer
+spec:
+  selector:
+    matchLabels:
+      app: ping-consumer
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ping-consumer
+    spec:
+      containers:
+      - name: ping-consumer
+        image: matthewberryhill/ping-consumer:pree8
+        env:
+        - name: RABBIT_ADDR
+          value: "amqp://ltvdoacc:urQws_KDYLQbcK0mOidy48snnJQMsr7Z@wombat.rmq.cloudamqp.com/ltvdoacc"
+        - name: REDIS_ADDR
+          value: "redis-master:6379"

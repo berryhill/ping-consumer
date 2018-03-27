@@ -2,6 +2,7 @@ package main
 
 import (
     "encoding/json"
+    "flag"
     "fmt"
     "log"
     "net/http"
@@ -16,9 +17,23 @@ import (
     "github.com/streadway/amqp"
 )
 
+var rabbitAddr = flag.String(
+    "addr",
+    "amqp://guest:guest@localhost:5672/",
+    "rabbitmq service address",
+    )
+
+var redisAddr = flag.String(
+    "redis",
+    "localhost:6379",
+    "redis service address",
+)
+
 func main() {
 
-    conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+    flag.Parse()
+
+    conn, err := amqp.Dial(*rabbitAddr)
     failOnError(err, "Failed to connect to RabbitMQ")
     defer conn.Close()
 
@@ -167,7 +182,7 @@ func Find(id string) Rig {
     HandleError(err)
 
     if err = json.Unmarshal(reply.([]byte), &r); err != nil {
-        panic(err)
+        log.Printf("Error", err)
     }
     return r
 }
@@ -181,7 +196,7 @@ func HandleError(err error) {
 
 func RedisConnect() redis.Conn {
 
-    c, err := redis.Dial("tcp", "localhost:6379")
+    c, err := redis.Dial("tcp", *redisAddr)
     HandleError(err)
     return c
 }
@@ -214,7 +229,6 @@ func UpdatePing(payload map[string]interface{}) {
 
     rig := Find("1")
     rig.LastPing = *ping
-
     UpdateRig(rig)
 }
 
